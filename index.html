@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>BEYルーレット</title>
-<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Noto+Sans+JP:wght@400;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
 <style>
   :root{--green:#39ff14;--green2:#00e676;--dark:#000;--card:#0d0d0d;--text:#e8ffe8;--muted:#3a5a3a;}
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -40,7 +40,7 @@
   /* READY */
   #ready-screen{background:#000;}
   #ready-screen .logo-wrap{margin-bottom:.6rem;}
-  .range-badge{font-family:'Dela Gothic One',sans-serif;font-size:clamp(.9rem,4vw,1.3rem);color:var(--green2);margin-bottom:2.2rem;letter-spacing:.08em;text-shadow:0 0 12px rgba(57,255,20,.5);transition:color .4s,text-shadow .4s;}
+  .range-badge{font-family:'Dela Gothic One',sans-serif;font-size:clamp(.9rem,4vw,1.3rem);color:var(--green2);margin-bottom:.4rem;letter-spacing:.08em;text-shadow:0 0 12px rgba(57,255,20,.5);transition:color .4s,text-shadow .4s;}
   .btn-area{position:relative;width:min(240px,64vw);height:min(240px,64vw);display:flex;align-items:center;justify-content:center;}
   .charge-ring{position:absolute;inset:-18px;pointer-events:none;}
   .charge-ring svg{width:100%;height:100%;}
@@ -68,6 +68,9 @@
   .lottery-btn.shooting .dots{opacity:0;}
   .lottery-btn.shooting .shoot-text{opacity:1;transform:scale(1);}
   .hint{margin-top:1.8rem;font-family:'Dela Gothic One',sans-serif;font-size:clamp(1.2rem,4vw,1.2rem);color:var(--green2);letter-spacing:.08em;text-shadow:0 0 12px rgba(57,255,20,.5);}
+  .score-display{position:relative;z-index:20;margin-top:.2rem;margin-bottom:2rem;font-family:'Orbitron',monospace;font-weight:900;font-size:clamp(1.6rem,7vw,2.4rem);color:var(--green);letter-spacing:.06em;text-shadow:0 0 16px rgba(57,255,20,.7);min-height:2.8rem;transition:color .15s,text-shadow .15s;}
+  .score-display.over{color:#ff4040;text-shadow:0 0 16px rgba(255,40,40,.9),0 0 40px rgba(255,40,40,.5);animation:over-blink .6s ease-in-out infinite alternate;}
+  @keyframes over-blink{from{opacity:1;transform:scale(1);}to{opacity:.8;transform:scale(1);}}
 
   /* RESULT */
   #result-screen{background:#000;}
@@ -132,6 +135,7 @@
 <div class="screen hidden" id="ready-screen">
   <div class="logo-wrap"><img id="logo-img2" src="" alt="BEYMETX"></div>
   <p class="range-badge" id="range-badge">残り 8 / 8 番</p>
+  <div class="score-display" id="score-display"></div>
   <div class="btn-area">
     <div class="charge-ring" id="charge-ring">
       <svg id="gauge-svg" viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -255,6 +259,13 @@ const svgNS2='http://www.w3.org/2000/svg';
 // 初期描画（暗い目盛り）
 function buildGauge(){
   gaugeSvg.innerHTML='';
+  // フィルター定義（初回から埋め込み）
+  const defsInit=document.createElementNS(svgNS2,'defs');
+  defsInit.innerHTML=`<filter id="tglow" x="-200%" y="-200%" width="500%" height="500%" filterUnits="userSpaceOnUse">
+    <feGaussianBlur stdDeviation="2" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>`;
+  gaugeSvg.appendChild(defsInit);
   // 外周トラックリング
   const track=document.createElementNS(svgNS2,'circle');
   track.setAttribute('cx',CX);track.setAttribute('cy',CY);track.setAttribute('r',R_TRACK);
@@ -303,15 +314,7 @@ function updateGauge(p){
       el.removeAttribute('filter');
     }
   }
-  // filterがなければ追加
-  if(!gaugeSvg.querySelector('#tglow')){
-    const defs=document.createElementNS(svgNS2,'defs');
-    defs.innerHTML=`<filter id="tglow" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="2" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>`;
-    gaugeSvg.insertBefore(defs,gaugeSvg.firstChild);
-  }
+
 }
 updateGauge(0);
 
@@ -331,26 +334,59 @@ function triggerShootEffect(){
     setTimeout(()=>sw.remove(),800+delay);
   });
 
-  // 3. 放射レイ（16本）
+  // 3. 放射レイ（16本）SVGで描画して0/90/180/270度も正しく表示
   const overlay=shootOverlay;
   overlay.innerHTML='';
   const cx=window.innerWidth/2, cy=window.innerHeight/2;
   const colors=['#39ff14','#00e676','#fff','#76ff03','#1de9b6'];
+
+  // SVGオーバーレイを作成
+  const raySvg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  raySvg.style.cssText=`position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;`;
+  overlay.appendChild(raySvg);
+
+  // SVG用のアニメーションstyleを追加（まだなければ）
+  if(!document.getElementById('ray-svg-style')){
+    const st=document.createElement('style');
+    st.id='ray-svg-style';
+    st.textContent=`
+      @keyframes ray-svg-shoot{
+        0%{stroke-dashoffset:var(--rlen);opacity:.9;}
+        60%{opacity:.9;}
+        100%{stroke-dashoffset:0;opacity:0;}
+      }
+    `;
+    document.head.appendChild(st);
+  }
+
   for(let i=0;i<16;i++){
     const angle=(i/16)*360;
+    const rad=angle*Math.PI/180;
     const len=80+Math.random()*120;
-    const ray=document.createElement('div');
-    ray.className='shoot-ray';
-    ray.style.cssText=`
-      left:${cx}px;top:${cy}px;
-      --rlen:${len}px;
-      width:0px;
-      background:${colors[i%colors.length]};
-      box-shadow:0 0 6px ${colors[i%colors.length]};
-      transform:translateY(-50%) rotate(${angle}deg);
-      animation:ray-shoot ${.3+Math.random()*.25}s ease-out ${Math.random()*80}ms forwards;
+    const color=colors[i%colors.length];
+    const delay=Math.random()*80;
+    const dur=.3+Math.random()*.25;
+
+    // 終点座標を計算
+    const ex=cx+Math.cos(rad)*len;
+    const ey=cy+Math.sin(rad)*len;
+
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',cx);
+    line.setAttribute('y1',cy);
+    line.setAttribute('x2',ex);
+    line.setAttribute('y2',ey);
+    line.setAttribute('stroke',color);
+    line.setAttribute('stroke-width','3');
+    line.setAttribute('stroke-linecap','round');
+    line.setAttribute('stroke-dasharray',len);
+    line.setAttribute('stroke-dashoffset',len);
+    line.style.cssText=`
+      --rlen:${len};
+      filter:drop-shadow(0 0 4px ${color});
+      animation:ray-svg-shoot ${dur}s ease-out ${delay}ms forwards;
     `;
-    overlay.appendChild(ray);
+    raySvg.appendChild(line);
   }
 
   // 4. パーティクル（24個）
@@ -391,10 +427,67 @@ function resetBtn(){
   isCharging=false; charged=false;
   if(chargeRAF){cancelAnimationFrame(chargeRAF);chargeRAF=null;}
   clearInterval(pulseInt); pulseRing.style.animation='none';
+  // スコアを0%で初期表示
+  const sd=document.getElementById('score-display');
+  if(sd){sd.textContent='0%';sd.classList.remove('over');sd.style.animation='';sd.style.color='#b8ffb8';sd.style.textShadow='none';}
+}
+
+/* スコア表示更新
+   p      : 経過割合（1.0 = 100%）
+   confirm: true = 離した瞬間の確定表示（色変化あり）
+            false = 押下中のリアルタイム表示（数字のみ、色変化なし）
+*/
+function updateScoreDisplay(p, confirm=false){
+  const sd=document.getElementById('score-display');
+  if(!sd)return;
+  const pct=Math.floor(p*100);
+
+  if(confirm){
+    // ── 確定表示：色・演出を適用 ──
+    sd.style.animation='';
+    if(pct>=101){
+      sd.textContent='OVER...';
+      sd.classList.add('over');
+      sd.style.color='';
+      sd.style.textShadow='';
+    } else if(pct===100){
+      sd.textContent='100%';
+      sd.classList.remove('over');
+      // ピンクと薄紫の間のグロウ
+      sd.style.color='#e8aaff';
+      sd.style.textShadow='0 0 14px rgba(220,140,255,1),0 0 35px rgba(200,100,255,.7),0 0 70px rgba(180,80,255,.4)';
+    } else if(pct>=90){
+      sd.textContent=pct+'%';
+      sd.classList.remove('over');
+      sd.style.color='#fff176';
+      sd.style.textShadow='0 0 16px rgba(255,241,80,1),0 0 40px rgba(255,238,0,.6)';
+    } else {
+      sd.textContent=pct+'%';
+      sd.classList.remove('over');
+      sd.style.color='';
+      sd.style.textShadow='';
+    }
+  } else {
+    // ── 押下中：数字だけ更新、色はグリーンのまま固定 ──
+    if(pct>=101){
+      sd.textContent='OVER...';
+      sd.classList.add('over');
+    } else {
+      sd.textContent=pct+'%';
+      sd.classList.remove('over');
+    }
+    // 色・アニメーションは変えない
+    sd.style.animation='';
+    sd.style.color='#b8ffb8';
+    sd.style.textShadow='none';
+  }
 }
 function startCharge(e){
   e.preventDefault(); if(isCharging||isLocked)return;
   isCharging=true; charged=false; chargeStart=performance.now();
+  // 押し始め：色リセットして0%表示
+  const sd=document.getElementById('score-display');
+  if(sd){sd.textContent='0%';sd.classList.remove('over');sd.style.animation='';sd.style.color='#b8ffb8';sd.style.textShadow='none';}
   btn.classList.add('charging');
   pulseInt=setInterval(()=>{pulseRing.style.animation='none';void pulseRing.offsetWidth;pulseRing.style.animation='pulse-expand .6s ease-out forwards';},350);
   function frame(now){
@@ -403,6 +496,9 @@ function startCharge(e){
     updateGauge(p);
     bgGlow.style.opacity=String(1+p*3);
     if(p>=1&&!charged){ charged=true; }
+    // 押下中：色変化なしでリアルタイム数値更新
+    const rawP=(now-chargeStart)/CHARGE_MAX;
+    updateScoreDisplay(rawP, false);
     chargeRAF=requestAnimationFrame(frame);
   }
   chargeRAF=requestAnimationFrame(frame);
@@ -413,7 +509,10 @@ function releaseCharge(e){
   isCharging=false; clearInterval(pulseInt);
   if(chargeRAF){cancelAnimationFrame(chargeRAF);chargeRAF=null;}
   const power=Math.min(elapsed/CHARGE_MAX,1);
+  const rawPower=elapsed/CHARGE_MAX;
   if(power<0.05){resetBtn();return;}
+  // スコア確定表示（色変化あり）
+  updateScoreDisplay(rawPower, true);
   isLocked=true;
   btn.classList.remove('charging'); btn.classList.add('shooting'); bgGlow.style.opacity='6';
   triggerShootEffect();
@@ -423,7 +522,7 @@ function releaseCharge(e){
     if(pool.length===0){initPool();resetBtn();return;}
     const winner=pool.pop(); drawn.push(winner);
     showResult(winner);
-  },500);
+  },1500);
 }
 btn.addEventListener('touchstart',startCharge,{passive:false});
 btn.addEventListener('touchend',releaseCharge,{passive:false});
