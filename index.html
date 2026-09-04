@@ -199,8 +199,8 @@
       <button class="num-btn" onclick="selectLeagueCount(8,this)">8</button>
       <button class="num-btn" onclick="selectLeagueCount(9,this)">9</button>
       <button class="num-btn" onclick="selectLeagueCount(10,this)">10</button>
-      <button class="num-btn step-btn" onclick="stepLeagueCount(-1)">-1</button>
-      <button class="num-btn step-btn" onclick="stepLeagueCount(1)">+1</button>
+      <button class="num-btn step-btn" onclick="stepLeagueCount(-1)">－1</button>
+      <button class="num-btn step-btn" onclick="stepLeagueCount(1)">＋1</button>
     </div>
   </div>
   <button class="start-btn" onclick="goNewLeague()">START ▶</button>
@@ -400,6 +400,7 @@ function goToLeagueSetup(){
 function goNew(){pool=[];drawn=[];goReady();}
 function goReady(){
   if(mode==='league'){
+    refillLeagueQueueIfNeeded();
     show('ready-screen'); resetBtn(); isLocked=false; updateRemaining();
     return;
   }
