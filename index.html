@@ -335,7 +335,7 @@ function updateRemaining(){
   if(mode==='league'){
     if(leagueRoundNum===0){badge.textContent='準備中...';badge.style.color='var(--green2)';badge.style.textShadow='0 0 12px rgba(var(--green-rgb),.5)';return;}
     const rem=leagueQueue.length;
-    badge.textContent=`第${leagueRoundNum}周 残り ${rem} / ${leagueBlockCount} ブロック`;
+    badge.textContent=`${leagueRoundNum}順目 残り ${rem} / ${leagueBlockCount} ブロック`;
     badge.style.color=rem<=1?'#ffaa00':'var(--green2)';
     badge.style.textShadow=rem<=1?'0 0 12px rgba(255,170,0,.7)':'0 0 12px rgba(var(--green-rgb),.5)';
   } else {
@@ -798,7 +798,7 @@ function renderLeagueBlocks(currentLetter){
 function showResultLeague(letter){
   updateRemaining();
   document.getElementById('result-num').textContent=letter;
-  document.getElementById('result-sub').textContent=`${leagueAssignedTotal} 人目 （第${leagueRoundNum}周）`;
+  document.getElementById('result-sub').textContent=`${leagueAssignedTotal} 人目 （${leagueRoundNum}順目）`;
   document.getElementById('bracket-wrap').style.display='none';
   document.getElementById('league-wrap').style.display='';
   renderLeagueBlocks(letter);
